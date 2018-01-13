@@ -1,11 +1,16 @@
 from http.server import  BaseHTTPRequestHandler, HTTPServer
+import os
 import sqlite3 as lite
 import sys
 
 class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
+    exists = False
+    if os.path.isfile('users.db'):
+        exists = True
     con = lite.connect('users.db')
     cur = con.cursor()
-    #cur.execute("CREATE TABLE Users(Name TEXT, Completed Date)")
+    if(not exists):
+    	cur.execute("CREATE TABLE Users(Name TEXT, Completed Date)")
     def do_GET(self):
         self.send_response(200)
 
