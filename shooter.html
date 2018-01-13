@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<style>
+canvas {
+    border:1px solid #d3d3d3;
+    background-color: #f1f1f1;
+}
+</style>
+</head>
+<body onload="startGame()">
+<script>
+
+var myGamePiece;
+var bullets;
+var enemies;
+var urbullets;
+var uniframe;
+var level;
+function startGame() {
+    myGameArea.start();
+    myGamePiece = new component(10, 10, "red", 100, 450);
+    bullets = [];
+    urbullets = [];
+	uniframe = 0;
+	level = 6;
+    enemies = [];
+}
+
+var myGameArea = {
+    canvas : document.createElement("canvas"),
+    start : function() {
+        this.canvas.width = 500;
+        this.canvas.height = 630;
+        this.context = this.canvas.getContext("2d");
+        document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+        this.interval = setInterval(updateGameArea, 20);
+        window.addEventListener('keydown', function (e) {
+            myGameArea.keys = (myGameArea.keys || []);
+            myGameArea.keys[e.keyCode] = (e.type == "keydown");
+        })
+        window.addEventListener('keyup', function (e) {
+            myGameArea.keys[e.keyCode] = (e.type == "keydown");            
+        })
+    }, 
+    clear : function(){
+        this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    },
+    stop : function() {
+    	clearInterval(this.interval);
+		var user = prompt("Congratulations!  Please enter your username:");
+		username("http://localhost:8081", user);
+    }
+}
+function enemy(x, y, direction){
+	this.width = 30;
+    this.height = 20;
+	this.x = x;
+    this.y = y;
+    this.speedX = 2 * direction
+    this.speedY = 0.5;
+    this.frame = 0;
+    this.shotrate = 25;
+    this.health = 5;
+    this.update = function() {
+        ctx = myGameArea.context;
+        ctx.fillStyle = "green";
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        if(this.frame >= this.shotrate){
+        	this.shoot();
+            this.frame = 0;
+        }
+        this.frame += 1;
+		if(this.touch()){
+        	myGamePiece.hurt();
+        }
+        if(this.y > myGameArea.canvas.height){
+        	enemies.splice(enemies.indexOf(this), 1);
+			myGamePiece.health -= 1;
+		}
+		if(this.health<=0)
+			enemies.splice(enemies.indexOf(this), 1);
+    }
+    this.newPos = function() {
+        if(this.x >= myGameArea.canvas.width - this.width &&this.speedX > 0)
+        	this.speedX = -this.speedX;
+        else if(this.x <= 0 && this.speedX < 0)
+        	this.speedX = -this.speedX;
+        this.x += this.speedX;
+        this.y += this.speedY;
+    }
+    this.shoot = function(){
+    	bullets.push(new bullet(this.x + this.width/2, this.y + this.height/2, 90));
+    }
+    this.hurt = function(){
+		ctx = myGameArea.context;
+        ctx.fillStyle = "#66ff66";
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+		this.health -= 1;
+	}
+	this.touch = function(){
+		if(this.y >= myGamePiece.y || this.y+this.height >= myGamePiece.y)
+        	if(this.y <= myGamePiece.y + myGamePiece.height || this.y+this.height <= myGamePiece.y + myGamePiece.height)
+    			if (this.x >= myGamePiece.x || this.x + this.width >= myGamePiece.x)
+        			if (this.x <= myGamePiece.x + myGamePiece.width || this.x + this.width <= myGamePiece.x + myGamePiece.width)
+            			return true;
+		return false;
+	}
+}
+function flyingenemy(x, y, direction){
+	this.width = 30;
+    this.height = 20;
+	this.x = x;
+    this.y = y;
+    this.speedX = 2 * direction;
+    this.speedY = 0.5;
+    this.health = 5;
+	this.degree = 0;
+    this.update = function() {
+        ctx = myGameArea.context;
+        ctx.fillStyle = "gray";
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        if(this.touch()){
+        	myGamePiece.hurt();
+        }
+        if(this.y > myGameArea.canvas.height){
+        	enemies.splice(enemies.indexOf(this), 1);
+			myGamePiece.health -= 1;
+		}
+		if(this.health<=0)
+			enemies.splice(enemies.indexOf(this), 1);
+    }
+    this.newPos = function() {
+        if(this.x >= myGameArea.canvas.width - this.width &&this.speedX > 0)
+        	this.speedX = -this.speedX;
+        else if(this.x <= 0 && this.speedX < 0)
+        	this.speedX = -this.speedX;
+        this.x += this.speedX + Math.cos(this.degree)*4*direction;
+        this.y += this.speedY + Math.sin(this.degree)*4;
+		this.degree += 0.1;
+    }
+    this.hurt = function(){
+		ctx = myGameArea.context;
+        ctx.fillStyle = "#b3b3b3";
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+		this.health -= 1;
+	}
+	this.touch = function(){
+		if(this.y >= myGamePiece.y || this.y+this.height >= myGamePiece.y)
+        	if(this.y <= myGamePiece.y + myGamePiece.height || this.y+this.height <= myGamePiece.y + myGamePiece.height)
+    			if (this.x >= myGamePiece.x || this.x + this.width >= myGamePiece.x)
+        			if (this.x <= myGamePiece.x + myGamePiece.width || this.x + this.width <= myGamePiece.x + myGamePiece.width)
+            			return true;
+		return false;
+	}
+}
+function trienemy(x, y){
+	this.width = 30;
+    this.height = 20;
+	this.x = x;
+    this.y = y;
+    this.speedX = 0;
+    this.speedY = 0.25;
+    this.frame = 0;
+    this.shotrate = 20;
+    this.health = 25;
+    this.update = function() {
+        ctx = myGameArea.context;
+        ctx.fillStyle = "#e60073";
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        if(this.frame >= this.shotrate){
+        	this.shoot();
+            this.frame = 0;
+        }
+        this.frame += 1;
+		if(this.touch()){
+        	myGamePiece.hurt();
+        }
+        if(this.y > myGameArea.canvas.height){
+        	enemies.splice(enemies.indexOf(this), 1);
+			myGamePiece.health -= 1;
+		}
+		if(this.health<=0)
+			enemies.splice(enemies.indexOf(this), 1);
+    }
+    this.newPos = function() {
+        if(this.x >= myGameArea.canvas.width - this.width &&this.speedX > 0)
+        	this.speedX = -this.speedX;
+        else if(this.x <= 0 && this.speedX < 0)
+        	this.speedX = -this.speedX;
+        this.x += this.speedX;
+        this.y += this.speedY;
+    }
+    this.shoot = function(){
+    	bullets.push(new bullet(this.x + this.width/2, this.y + this.height/2, 80));
+		bullets.push(new bullet(this.x + this.width/2, this.y + this.height/2, 120));
+		bullets.push(new bullet(this.x + this.width/2, this.y + this.height/2, 60));
+		bullets.push(new bullet(this.x + this.width/2, this.y + this.height/2, 100));
+    }
+    this.hurt = function(){
+		ctx = myGameArea.context;
+        ctx.fillStyle = "#ff80bf";
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+		this.health -= 1;
+	}
+	this.touch = function(){
+		if(this.y >= myGamePiece.y || this.y+this.height >= myGamePiece.y)
+        	if(this.y <= myGamePiece.y + myGamePiece.height || this.y+this.height <= myGamePiece.y + myGamePiece.height)
+    			if (this.x >= myGamePiece.x || this.x + this.width >= myGamePiece.x)
+        			if (this.x <= myGamePiece.x + myGamePiece.width || this.x + this.width <= myGamePiece.x + myGamePiece.width)
+            			return true;
+		return false;
+	}
+}
+function spiralenemy(x, y, direction){
+	this.width = 30;
+    this.height = 30;
+	this.x = x;
+    this.y = y;
+    this.speedX = 0;
+    this.speedY = 1;
+    this.frame = 0;
+    this.shotrate = 12;
+    this.health = 35;
+	this.shootY = 150;
+	this.spin = 0;
+    this.update = function() {
+        ctx = myGameArea.context;
+        ctx.fillStyle = "purple";
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        if(this.frame >= this.shotrate && this.y >= this.shootY){
+        	this.shoot();
+            this.frame = 0;
+        }
+        this.frame += 1;
+		if(this.touch()){
+        	myGamePiece.hurt();
+        }
+        if(this.y > myGameArea.canvas.height || this.health<=0)
+        	enemies.splice(enemies.indexOf(this), 1);
+    }
+    this.newPos = function() {
+        this.x += this.speedX;
+		if (this.y < this.shootY)
+			this.y += this.speedY;
+    }
+    this.shoot = function(){
+		for(i = 0; i < 20; i++){
+		    bullets.push(new bullet(this.x + this.width/2, this.y + this.height/2, i*18 + this.spin));
+		}
+		this.spin += 4*direction;
+		if (this.spin % 360 == 0){
+			this.spin = 0;
+		}
+    }
+    this.hurt = function(){
+		if (this.y >= this.shootY){
+			ctx = myGameArea.context;
+			ctx.fillStyle = "#ff66ff";
+			ctx.fillRect(this.x, this.y, this.width, this.height);
+			this.health -= 1;
+		}
+	}
+	this.touch = function(){
+		if(this.y >= myGamePiece.y || this.y+this.height >= myGamePiece.y)
+        	if(this.y <= myGamePiece.y + myGamePiece.height || this.y+this.height <= myGamePiece.y + myGamePiece.height)
+    			if (this.x >= myGamePiece.x || this.x + this.width >= myGamePiece.x)
+        			if (this.x <= myGamePiece.x + myGamePiece.width || this.x + this.width <= myGamePiece.x + myGamePiece.width)
+            			return true;
+		return false;
+	}
+}
+function quadspiralenemy(x, y, direction){
+	this.width = 30;
+    this.height = 30;
+	this.x = x;
+    this.y = y;
+    this.speedX = 0;
+    this.speedY = 1;
+    this.frame = 0;
+    this.shotrate = 3;
+    this.health = 55;
+	this.shootY = 250;
+	this.spin = 0;
+	this.spinrate = 2;
+    this.update = function() {
+        ctx = myGameArea.context;
+        ctx.fillStyle = "black";
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        if(this.frame >= this.shotrate && this.y >= this.shootY){
+        	this.shoot();
+            this.frame = 0;
+        }
+        this.frame += 1;
+		if(this.touch()){
+        	myGamePiece.hurt();
+        }
+        if(this.y > myGameArea.canvas.height || this.health<=0)
+        	enemies.splice(enemies.indexOf(this), 1);
+    }
+    this.newPos = function() {
+        this.x += this.speedX;
+		if (this.y < this.shootY)
+			this.y += this.speedY;
+    }
+    this.shoot = function(){
+		for(i = 0; i < 4; i++){
+		    bullets.push(new bullet(this.x + this.width/2, this.y + this.height/2, i*90 + this.spin));
+		}
+		this.spin += this.spinrate*direction;
+		if (this.spin % 360 == 0){
+			this.spin = 0;
+		}
+    }
+    this.hurt = function(){
+		if (this.y >= this.shootY){
+			ctx = myGameArea.context;
+			ctx.fillStyle = "gray";
+			ctx.fillRect(this.x, this.y, this.width, this.height);
+			this.health -= 1;
+		}
+	}
+	this.touch = function(){
+		if(this.y >= myGamePiece.y || this.y+this.height >= myGamePiece.y)
+        	if(this.y <= myGamePiece.y + myGamePiece.height || this.y+this.height <= myGamePiece.y + myGamePiece.height)
+    			if (this.x >= myGamePiece.x || this.x + this.width >= myGamePiece.x)
+        			if (this.x <= myGamePiece.x + myGamePiece.width || this.x + this.width <= myGamePiece.x + myGamePiece.width)
+            			return true;
+		return false;
+	}
+}
+function bullet(x, y, degree){
+	this.x = x;
+    this.y = y;
+    this.speedX = Math.cos(degree * Math.PI/180)*2.5;
+    this.speedY = Math.sin(degree * Math.PI/180)*2.5;
+    this.update = function() {
+    	ball = myGameArea.canvas.getContext("2d");
+        ball.fillStyle = "orange";
+		ball.beginPath();
+        ball.arc(this.x,this.y,6,0,2*Math.PI);
+        ball.fill();
+        if (this.hit()){
+			myGamePiece.hurt();
+			bullets.splice(bullets.indexOf(this), 1);
+		}
+		if(this.x > myGameArea.canvas.width || this.x < 0 || this.y > myGameArea.canvas.height || this.y < 0){
+        	bullets.splice(bullets.indexOf(this),1);
+        }
+    }
+    this.newPos = function() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        
+    }
+    this.hit = function(){
+    	if(this.y >= myGamePiece.y)
+        	if(this.y <= myGamePiece.y + myGamePiece.height)
+    			if (this.x >= myGamePiece.x)
+        			if (this.x <= myGamePiece.x + myGamePiece.width)
+            			return true;
+		return false;
+    }
+}
+
+function component(width, height, color, x, y) {
+    this.gamearea = myGameArea;
+    this.width = width;
+    this.height = height;
+    this.speedX = 0;
+    this.speedY = 0;    
+    this.x = x;
+    this.y = y;
+	this.frame = 0;
+	this.shotrate = 3;
+	this.alreadyshot = false;
+	this.health = 5;
+	this.invincible = false;
+	this.invinciframe = 0;
+	this.color = color;
+    this.update = function() {
+		if (this.invincible){
+			if (this.invinciframe < 100){
+				if(Math.floor(this.invinciframe/10)%2 == 0){
+					this.color = "#ff6666";
+				}
+				else
+					this.color = "red";
+				this.invinciframe += 1;
+			}
+			else{
+				this.invincible = false;
+				this.color = "red";
+				this.invinciframe = 0;
+			}
+		}
+        ctx = myGameArea.context;
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+		if (this.health <= 0){
+			myGameArea.stop();
+		}
+		if (this.frame >= this.shotrate){
+			this.frame = 0;
+			this.alreadyshot = false;
+		}
+		this.frame += 1;
+    }
+    this.newPos = function() {
+    	if(this.x < myGameArea.canvas.width - this.width && this.speedX > 0)
+        	this.x += this.speedX;
+        else if(this.x > 0 && this.speedX < 0)
+        	this.x += this.speedX;
+        if(this.y < myGameArea.canvas.height-this.height && this.speedY > 0)
+        	this.y += this.speedY;
+        else if(this.y > 0 && this.speedY < 0)
+        	this.y += this.speedY;      
+    }
+    this.shoot = function(){
+		if(!this.alreadyshot){
+			urbullets.push(new urbullet(this.x + this.width/2, this.y + this.height/2));
+			this.alreadyshot = true;
+			this.frame = 0;
+		}
+	}
+	this.hurt = function(){
+		if (!this.invincible){
+			this.health -= 1;
+			this.invincible = true;
+		}
+	}
+}
+
+function urbullet(x, y){
+	this.x = x;
+    this.y = y;
+    this.speedY = -10;
+	this.speedX = 0;
+    this.update = function() {
+    	ball = myGameArea.canvas.getContext("2d");
+        ball.fillStyle = "blue";
+		ball.beginPath();
+        ball.arc(this.x,this.y,4,0,2*Math.PI);
+        ball.fill();
+        for (k = enemies.length-1; k>=0; k--){
+        	if (this.hit(enemies[k])){
+        		enemies[k].hurt();
+	        	urbullets.splice(urbullets.indexOf(this),1);
+			}
+        }
+		if(this.x > myGameArea.canvas.width || this.x < 0 || this.y > myGameArea.canvas.height || this.y < 0){
+        	urbullets.splice(urbullets.indexOf(this),1);
+        }
+    }
+    this.newPos = function() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        
+    }
+    this.hit = function(enemy){
+    	if(this.y >= enemy.y)
+        	if(this.y <= enemy.y + enemy.height)
+    			if (this.x >= enemy.x)
+        			if (this.x <= enemy.x + enemy.width)
+            			return true;
+		return false;
+    }
+}
+var spawnframe = 1;
+function updateGameArea() {
+    myGameArea.clear();
+    myGamePiece.speedX = 0;
+    myGamePiece.speedY = 0;    
+    if (myGameArea.keys && myGameArea.keys[37]) {myGamePiece.speedX = -5; }
+    if (myGameArea.keys && myGameArea.keys[39]) {myGamePiece.speedX = 5; }
+    if (myGameArea.keys && myGameArea.keys[38]) {myGamePiece.speedY = -5; }
+    if (myGameArea.keys && myGameArea.keys[40]) {myGamePiece.speedY = 5; }
+    if (myGameArea.keys && myGameArea.keys[32]) {myGamePiece.shoot();}
+    myGamePiece.newPos();    
+    myGamePiece.update();
+    if (enemies){
+    	for (k = enemies.length-1; k>=0; k--){
+        	enemies[k].newPos();
+            enemies[k].update();
+        }
+    }
+    if (bullets){
+    	for(i = bullets.length-1; i >= 0; i--){
+    		bullets[i].newPos();
+        	bullets[i].update();
+        }
+    }
+	if (urbullets){
+    	for(i = urbullets.length-1; i >= 0; i--){
+    		urbullets[i].newPos();
+        	urbullets[i].update();
+        }
+    }
+	character = myGameArea.canvas.getContext("2d");
+	character.fillStyle = "Black";
+	character.font = "20px Arial";
+	character.fillText("lives: " + myGamePiece.health, myGameArea.canvas.width - 70, 20);
+	switch(level){
+		case 1:
+			levelone(spawnframe);
+			break;
+		case 2:
+			leveltwo(spawnframe);
+			break;
+		case 3:
+			levelthree(spawnframe);
+			break;
+		case 3.5:
+			levelthreepointfive(spawnframe);
+			break;
+		case 4:
+			levelfour(spawnframe);
+			break;
+		case 5:
+			levelfive(spawnframe);
+			break;
+		case 6:
+			finish(spawnframe);
+	}
+	spawnframe += 1;
+}
+function levelone(frame){
+	if (frame < 100){
+		character = myGameArea.canvas.getContext("2d");
+		character.fillStyle = "Black";
+		character.font = "40px Arial";
+		character.fillText("Level " + level, myGameArea.canvas.width/2 - 90, myGameArea.canvas.height/3);
+	}
+	if (frame == 100)
+		enemies.push(new enemy(myGameArea.canvas.width/2-15,0, 1));
+	if (frame == 300)
+		enemies.push(new enemy(0,0, 1));
+	if (frame == 320)
+		enemies.push(new enemy(0,0, 1));
+	if (frame == 340)
+		enemies.push(new enemy(0,0, 1));
+	if (frame == 360)
+		enemies.push(new enemy(0,0, 1));
+	if (frame == 380)
+		enemies.push(new enemy(0,0, 1));
+	if (frame == 620)
+		enemies.push(new enemy(0,0, 1), new enemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 640)
+		enemies.push(new enemy(0,0, 1), new enemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 660)
+		enemies.push(new enemy(0,0, 1), new enemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 1000)
+		enemies.push(new flyingenemy(0, 0, 1), new flyingenemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 1010)
+		enemies.push(new flyingenemy(0, 0, 1), new flyingenemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 1020)
+		enemies.push(new flyingenemy(0, 0, 1), new flyingenemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 1030)
+		enemies.push(new flyingenemy(0, 0, 1), new flyingenemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 1040)
+		enemies.push(new flyingenemy(0, 0, 1), new flyingenemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame > 1040 && enemies.length == 0){
+		level = 2;
+		spawnframe = 1;
+	}
+		
+}
+function leveltwo(frame){
+	if (frame < 100){
+		character = myGameArea.canvas.getContext("2d");
+		character.fillStyle = "Black";
+		character.font = "40px Arial";
+		character.fillText("Level " + level, myGameArea.canvas.width/2 - 90, myGameArea.canvas.height/3);
+	}
+	if (frame == 100)
+		enemies.push(new trienemy(myGameArea.canvas.width/2-8, 0));
+	if(frame == 400)
+		enemies.push(new trienemy(myGameArea.canvas.width*3/4 - 8, 0), new trienemy(myGameArea.canvas.width/4 - 8, 0));
+	if (frame == 900)
+		enemies.push(new trienemy(myGameArea.canvas.width/2 - 8, 0), new enemy(0,0, 1), new enemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 1000)
+		enemies.push(new flyingenemy(0, 0, 1), new flyingenemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 1010)
+		enemies.push(new flyingenemy(0, 0, 1), new flyingenemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 1020)
+		enemies.push(new flyingenemy(0, 0, 1), new flyingenemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 1030)
+		enemies.push(new flyingenemy(0, 0, 1), new flyingenemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 1040)
+		enemies.push(new flyingenemy(0, 0, 1), new flyingenemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 1400)
+		enemies.push(new spiralenemy(myGameArea.canvas.width/2-8, 0, -1));
+	if (frame > 1400 && enemies.length == 0){
+		level = 3;
+		spawnframe = 1;
+	}
+}
+function levelthree(frame){
+	if (frame < 100){
+		character = myGameArea.canvas.getContext("2d");
+		character.fillStyle = "Black";
+		character.font = "40px Arial";
+		character.fillText("Level " + level, myGameArea.canvas.width/2 - 90, myGameArea.canvas.height/3);
+	}
+	if (frame == 100)
+		enemies.push(new trienemy(myGameArea.canvas.width*3/4 - 8, 0), new trienemy(myGameArea.canvas.width/4 - 8, 0));
+	if (frame == 150)
+		enemies.push(new enemy(myGameArea.canvas.width/2 - 8,0, 1), new enemy(myGameArea.canvas.width/2 - 8, 0, -1));
+	if (frame == 170)
+		enemies.push(new enemy(myGameArea.canvas.width/2 - 8,0, 1), new enemy(myGameArea.canvas.width/2 - 8, 0, -1));
+	if (frame == 190)
+		enemies.push(new enemy(myGameArea.canvas.width/2 - 8,0, 1), new enemy(myGameArea.canvas.width/2 - 8, 0, -1));
+	
+	if (frame > 190 && enemies.length == 0){
+		level = 3.5;
+		spawnframe = 1;
+	}
+}
+function levelthreepointfive(frame){
+	if (frame == 100)
+		enemies.push(new quadspiralenemy(myGameArea.canvas.width/2-8, 0, -1));
+	if (frame == 150)
+		enemies.push(new flyingenemy(0, 0, 1), new flyingenemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 170)
+		enemies.push(new flyingenemy(0, 0, 1), new flyingenemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 190)
+		enemies.push(new flyingenemy(0, 0, 1), new flyingenemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 210)
+		enemies.push(new flyingenemy(0, 0, 1), new flyingenemy(myGameArea.canvas.width - 15, 0, -1));
+	if (frame == 250)
+		enemies.push(new enemy(myGameArea.canvas.width/2 - 8,0, 1), new enemy(myGameArea.canvas.width/2 - 8, 0, -1));
+	if (frame == 270)
+		enemies.push(new enemy(myGameArea.canvas.width/2 - 8,0, 1), new enemy(myGameArea.canvas.width/2 - 8, 0, -1));
+	if (frame == 290)
+		enemies.push(new enemy(myGameArea.canvas.width/2 - 8,0, 1), new enemy(myGameArea.canvas.width/2 - 8, 0, -1));
+	if (frame == 310)
+		enemies.push(new enemy(myGameArea.canvas.width/2 - 8,0, 1), new enemy(myGameArea.canvas.width/2 - 8, 0, -1));
+	if (frame == 330)
+		enemies.push(new enemy(myGameArea.canvas.width/2 - 8,0, 1), new enemy(myGameArea.canvas.width/2 - 8, 0, -1));
+	if (frame > 330 && enemies.length == 0){
+		level = 4;
+		spawnframe = 1;
+	}
+}
+function levelfour(frame){
+	if (frame < 100){
+		character = myGameArea.canvas.getContext("2d");
+		character.fillStyle = "Black";
+		character.font = "40px Arial";
+		character.fillText("Level " + level, myGameArea.canvas.width/2 - 90, myGameArea.canvas.height/3);
+	}
+	if (frame == 100){
+		var left = new spiralenemy(myGameArea.canvas.width/4-8, 0, -1);
+		left.health = 70;
+		var right = new spiralenemy(myGameArea.canvas.width*3/4-8, 0, -1);
+		right.health = 70;
+		enemies.push(left, right);
+	}
+		
+	if (frame > 100 && enemies.length == 0){
+		level = 5;
+		spawnframe = 1;
+	}
+}
+function levelfive(frame){
+	if (frame < 100){
+		character = myGameArea.canvas.getContext("2d");
+		character.fillStyle = "Black";
+		character.font = "40px Arial";
+		character.fillText("Level " + level, myGameArea.canvas.width/2 - 90, myGameArea.canvas.height/3);
+	}
+	if (frame == 100){
+		var left = new spiralenemy(myGameArea.canvas.width/2-73, 0, -1);
+		left.health = 40;
+		left.shootY = 250;
+		left.shotrate = 20;
+		var right = new spiralenemy(myGameArea.canvas.width*2/4+22, 0, -1);
+		right.health = 40;
+		right.shootY = 250;
+		left.shotrate = 20;
+		var mid = new quadspiralenemy(myGameArea.canvas.width/2-25, 0, -1);
+		mid.spinrate = 1;
+		enemies.push(left, right, mid);
+	}
+	if (frame > 100 && enemies.length == 0){
+		level = 6;
+		spawnframe = 1;
+	}
+}
+function finish(frame){
+	character = myGameArea.canvas.getContext("2d");
+	character.fillStyle = "Black";
+	character.font = "40px Arial";
+	character.fillText("Congratulations!", myGameArea.canvas.width/5 , myGameArea.canvas.height/2);
+	if(frame > 100){
+		myGameArea.stop();
+	}
+}
+function post(dictionary, url) {
+	var method = "post"; // post (set to default) or get
+
+	// Create the form object
+	var form = document.createElement("form");
+	form.setAttribute("method", method);
+	form.setAttribute("action", url);
+
+	// For each key-value pair
+	for (key in dictionary) {
+		//alert('key: ' + key + ', value:' + dictionary[key]); // debug
+		var hiddenField = document.createElement("input");	
+		hiddenField.setAttribute("type", "hidden"); 
+		hiddenField.setAttribute("name", key);
+		hiddenField.setAttribute("value", dictionary[key]);
+		// append the newly created control to the form
+		form.appendChild(hiddenField); 
+	}
+	//window.alert(document.getElementById("name").value);
+	//form.appendChild(document.getElementById("myForm"));
+	document.body.appendChild(form); // inject the form object into the body section
+	form.submit();
+	//document.getElementById("myForm").submit();
+}
+function username(url, user) {
+	myDictionary = [];
+	cur = new Date();
+	myDictionary[user] = cur.toString();
+	post(myDictionary, url);
+}
+
+</script>
+</body>
+</html>
